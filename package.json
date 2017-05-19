@@ -1,0 +1,30 @@
+{
+  "name": "automte-exchange-contracts",
+  "version": "1.0.0",
+  "description": "Smart contracts running the Automte Ether Exchange",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "truffle test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adklempner/automte-exchange-contracts.git"
+  },
+  "keywords": [
+    "solidity",
+    "ethereum",
+    "smart-contract"
+  ],
+  "author": "adklempner",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/adklempner/automte-exchange-contracts/issues"
+  },
+  "homepage": "https://github.com/adklempner/automte-exchange-contracts#readme",
+  "dependencies": {
+    "zeppelin-solidity": "^1.0.5"
+  }
+}
