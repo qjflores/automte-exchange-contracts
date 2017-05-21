@@ -2,47 +2,30 @@ pragma solidity ^0.4.11;
 
 import "./zeppelin/ownership/Ownable.sol";
 import "./zeppelin/SafeMath.sol";
+import "./OrderBook.sol";
 
 contract ETHOrderBook is Ownable {
   using SafeMath for uint;
 
-  enum Status { Open, Complete, Disputed, ResolvedSeller, ResolvedBuyer }
-
-  struct Order {
-    address buyer;
-    uint amount;
-    uint price;
-    string currency;
-    uint fee;
-    Status status;
-  }
-
-  mapping(string => Order) orders;
-
+  OrderBook.Orders orderBook;
   address public seller;
-  uint public availableFunds;
-  uint feePercent;
+  uint public availableBalance;
+  uint feePercent; // 1 = 1% fee
 
   uint MINIMUM_ORDER_AMOUNT; //inclusive
   uint MAXIMUM_ORDER_AMOUNT; //exclusive
 
   function ETHOrderBook(address _seller, uint _feePercent, uint min, uint max) {
     seller = _seller;
-
-    if(_feePercent < 1 || _feePercent > 100)
-      throw;
     feePercent = _feePercent;
-
-    if(min == 0 || min > max)
-      throw;
     MINIMUM_ORDER_AMOUNT = min;
     MAXIMUM_ORDER_AMOUNT = max;
-
-    availableFunds = 0;
+    availableBalance = 0;
   }
 
   function () payable {
-    availableFunds += msg.value;
+    //Is there a reason to limit this to only the seller's address?
+    availableBalance += msg.value;
   }
 
 
@@ -60,84 +43,82 @@ contract ETHOrderBook is Ownable {
          msg.sender != seller //only seller can add orders
       || amount <= MINIMUM_ORDER_AMOUNT //don't add order if amount is less than or equal to minimum order amount
       || amount > MAXIMUM_ORDER_AMOUNT //don't add order if amount is greater than maximum order amount
-      || (amount+fee) > availableFunds //don't add order if amount with fee exceeds available funds
-      || orders[uid].amount > 0 //don't add order if an order with the same UID already exists
+      || amount.add(fee) > availableBalance //don't add order if amount with fee exceeds available funds
+      || orderBook.orders[uid].amount > 0 //don't add order if an order with the same UID already exists
     )
       throw;
 
-    orders[uid].buyer = buyer;
-    orders[uid].amount = amount;
-    orders[uid].price = price;
-    orders[uid].currency = currency;
-    orders[uid].fee = fee;
-    orders[uid].status = Status.Open;
+    OrderBook.addOrder(orderBook, uid, buyer, amount, price, currency, fee);
 
-    availableFunds -= (amount+fee);
+    availableBalance = availableBalance.sub(amount.add(fee));
 
     OrderAdded(uid, seller, buyer, amount, price, currency);
   }
 
   event OrderCompleted(string uid, address seller, address buyer, uint amount);
 
-  function completeOrder(string uid) onlySeller statusIs(uid, Status.Open) {
-    if(!orders[uid].buyer.send(orders[uid].amount))
+  function completeOrder(string uid) onlySeller statusIs(uid, OrderBook.Status.Open) {
+    if(!orderBook.orders[uid].buyer.send(orderBook.orders[uid].amount))
       throw;
 
-    if(!owner.send(orders[uid].fee))
+    if(!owner.send(orderBook.orders[uid].fee))
       throw;
 
-    OrderCompleted(uid, seller, orders[uid].buyer, orders[uid].amount);
+    OrderCompleted(uid, seller, orderBook.orders[uid].buyer, orderBook.orders[uid].amount);
 
-    orders[uid].status = Status.Complete;
+    orderBook.orders[uid].status = OrderBook.Status.Complete;
   }
 
   event OrderDisputed(string uid, address seller, address buyer);
 
-  function checkDispute(string uid) onlyOwner statusIs(uid, Status.Open) {
+  function checkDispute(string uid) onlyOwner statusIs(uid, OrderBook.Status.Open) {
     //TODO: Use Oraclize to make an https request to firebase to check if the order is in dispute
     //bool disputed = oraclize.call('https://us-central1-automteetherexchange.cloudfunctions.net/isDisputed', uid)
-    //if(disputed) orders[uid].status = Status.Disputed;
+    //if(disputed) orders[uid].status = OrderBook.Status.Disputed;
     //OrderDisputed(uid, seller, orders[uid].buyer)
 
     //for current testing, this function always mocks a true result
-    orders[uid].status = Status.Disputed;
-    OrderDisputed(uid, seller, orders[uid].buyer);
+    orderBook.orders[uid].status = OrderBook.Status.Disputed;
+    OrderDisputed(uid, seller, orderBook.orders[uid].buyer);
   }
 
   event DisputeResolved(string uid, address seller, address buyer, string resolvedTo);
 
   //Resolve dispute in favor of seller
-  function resolveDisputeSeller(string uid) onlyOwner statusIs(uid, Status.Disputed) {
-    availableFunds += orders[uid].amount + orders[uid].fee;
+  function resolveDisputeSeller(string uid) onlyOwner statusIs(uid, OrderBook.Status.Disputed) {
+    availableBalance = availableBalance.add(orderBook.orders[uid].amount.add(orderBook.orders[uid].fee));
 
-    orders[uid].status = Status.ResolvedSeller;
+    orderBook.orders[uid].status = OrderBook.Status.ResolvedSeller;
 
-    DisputeResolved(uid, seller, orders[uid].buyer, 'seller');
+    DisputeResolved(uid, seller, orderBook.orders[uid].buyer, 'seller');
   }
 
   //Resolve dispute in favor of buyer
-  function resolveDisputeBuyer(string uid) onlyOwner statusIs(uid, Status.Disputed) {
-    if(!orders[uid].buyer.send(orders[uid].amount))
+  function resolveDisputeBuyer(string uid) onlyOwner statusIs(uid, OrderBook.Status.Disputed) {
+    if(!orderBook.orders[uid].buyer.send(orderBook.orders[uid].amount))
       throw;
 
-    if(!owner.send(orders[uid].fee))
+    if(!owner.send(orderBook.orders[uid].fee))
       throw;
 
-    orders[uid].status = Status.ResolvedBuyer;
+    orderBook.orders[uid].status = OrderBook.Status.ResolvedBuyer;
 
-    DisputeResolved(uid, seller, orders[uid].buyer, 'buyer');
+    DisputeResolved(uid, seller, orderBook.orders[uid].buyer, 'buyer');
   }
 
   function withdraw(uint amount) onlySeller {
-    if(amount > availableFunds)
+    if(amount > availableBalance)
       throw;
 
-    if(!seller.send(amount))
+    if(!seller.send(amount)) {
       throw;
+    } else {
+      availableBalance = availableBalance.sub(amount);
+    }
   }
 
-  modifier statusIs(string uid, Status status) {
-    if(orders[uid].status != status)
+  modifier statusIs(string uid, OrderBook.Status status) {
+    if(orderBook.orders[uid].status != status)
       throw;
     _;
   }

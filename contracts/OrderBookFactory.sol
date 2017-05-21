@@ -8,11 +8,10 @@ import "./zeppelin/ownership/Ownable.sol";
 */
 contract OrderBookFactory is Ownable {
 
-  uint private feePercent;
-  uint constant INIT_FEE_PERCENT = 1; //1%
+  uint public feePercent;
 
-  function OrderFactory() {
-    feePercent = INIT_FEE_PERCENT;
+  function OrderBookFactory() {
+    feePercent = 1;
   }
 
   //Only contracts whose addresses are logged by this event will appear on the exchange.

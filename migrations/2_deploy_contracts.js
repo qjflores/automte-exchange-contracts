@@ -1,8 +1,11 @@
-var ConvertLib = artifacts.require("./ConvertLib.sol");
-var MetaCoin = artifacts.require("./MetaCoin.sol");
+var OrderBook = artifacts.require("./OrderBook.sol");
+var OrderBookFactory = artifacts.require("./OrderBookFactory.sol");
+var ETHOrderBook = artifacts.require("./ETHOrderBook.sol")
+var SafeMath = artifacts.require("./SafeMath.sol");
 
 module.exports = function(deployer) {
-  deployer.deploy(ConvertLib);
-  deployer.link(ConvertLib, MetaCoin);
-  deployer.deploy(MetaCoin);
+  deployer.deploy(OrderBook);
+  deployer.deploy(SafeMath);
+  deployer.link(OrderBook, ETHOrderBook);
+  deployer.link(OrderBook, OrderBookFactory);
 };
