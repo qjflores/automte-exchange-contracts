@@ -1,22 +1,27 @@
 pragma solidity ^0.4.11;
-
+//"-KkB0qMpH-dz7KTvPC9v", "0x5bF90665B051c36cE54388a487D1021F3fAdd999", "100000000000000000", 18000, "USD"
 import "./zeppelin/ownership/Ownable.sol";
 import "./zeppelin/SafeMath.sol";
 import "./OrderBook.sol";
+import "../oraclize-ethereum-api/oraclizeAPI_0.4.sol";
 
-contract ETHOrderBook is Ownable {
+contract ETHOrderBook is Ownable, usingOraclize {
   using SafeMath for uint;
 
   OrderBook.Orders orderBook;
   address public seller;
+  string country;
   uint public availableBalance;
   uint feePercent; // 1 = 1% fee
 
   uint MINIMUM_ORDER_AMOUNT; //inclusive
   uint MAXIMUM_ORDER_AMOUNT; //exclusive
 
-  function ETHOrderBook(address _seller, uint _feePercent, uint min, uint max) {
+  mapping(bytes32 => string) disputeQueryIds;
+
+  function ETHOrderBook(address _seller, string _country, uint _feePercent, uint min, uint max) {
     seller = _seller;
+    country = _country;
     feePercent = _feePercent;
     MINIMUM_ORDER_AMOUNT = min;
     MAXIMUM_ORDER_AMOUNT = max;
@@ -72,14 +77,16 @@ contract ETHOrderBook is Ownable {
   event OrderDisputed(string uid, address seller, address buyer);
 
   function checkDispute(string uid) onlyOwner statusIs(uid, OrderBook.Status.Open) {
-    //TODO: Use Oraclize to make an https request to firebase to check if the order is in dispute
-    //bool disputed = oraclize.call('https://us-central1-automteetherexchange.cloudfunctions.net/isDisputed', uid)
-    //if(disputed) orders[uid].status = OrderBook.Status.Disputed;
-    //OrderDisputed(uid, seller, orders[uid].buyer)
+    disputeQueryIds[oraclize_query("URL", "json(https://us-central1-automteetherexchange.cloudfunctions.net/checkDispute).dispute", strConcat('\n{"country" :"', country, '", "orderId": "', uid, '"}"'))] = uid;
+  }
 
-    //for current testing, this function always mocks a true result
-    orderBook.orders[uid].status = OrderBook.Status.Disputed;
-    OrderDisputed(uid, seller, orderBook.orders[uid].buyer);
+  function __callback(bytes32 id, string result) {
+    if(msg.sender != oraclize_cbAddress() || strCompare(disputeQueryIds[id], "VOID") == 0) throw;
+    if(strCompare(result, "true") == 0) {
+      orderBook.orders[disputeQueryIds[id]].status = OrderBook.Status.Disputed;
+      OrderDisputed(disputeQueryIds[id], seller, orderBook.orders[disputeQueryIds[id]].buyer);
+    }
+    disputeQueryIds[id] = "VOID";
   }
 
   event DisputeResolved(string uid, address seller, address buyer, string resolvedTo);

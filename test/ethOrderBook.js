@@ -14,11 +14,12 @@ contract('ETHOrderBook', function(accounts) {
   var buyer = accounts[2];
   var min = ether(0.2);
   var max = ether(5);
+  var country = "IN";
 
   const feePercent = 0.01;
 
   it("creates ETHOrderBook with availableBalance of 0", async function() {
-    ethOrderBook = await ETHOrderBook.new(seller, 1, min, max, {from: owner});
+    ethOrderBook = await ETHOrderBook.new(seller, country, 1, min, max, {from: owner});
     assert.equal(await ethOrderBook.availableBalance(), 0);
   });
 

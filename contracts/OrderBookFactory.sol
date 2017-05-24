@@ -17,8 +17,8 @@ contract OrderBookFactory is Ownable {
   //Only contracts whose addresses are logged by this event will appear on the exchange.
   event ETHOrderBookCreated(address seller, address orderAddress);
 
-  function createETHOrderBook() external {
-    ETHOrderBook orderBook = new ETHOrderBook(msg.sender, feePercent, 1 ether, 10 ether);
+  function createETHOrderBook(string country) external {
+    ETHOrderBook orderBook = new ETHOrderBook(msg.sender, country, feePercent, 1 ether, 10 ether);
 
     orderBook.transferOwnership(owner);
 

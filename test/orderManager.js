@@ -10,6 +10,7 @@ contract('OrderBookFactory', function(accounts) {
   var orderBookManager, orderBookFactory, ethOrderBook;
   var feePercent = 0.01;
   var amount = 1;
+  var country = "IN";
 
   it("creates OrderBookFactory and transfers ownership to OrderBookManager", async function() {
     orderBookManager = await OrderBookManager.new(owners, 2, 10);
@@ -20,7 +21,7 @@ contract('OrderBookFactory', function(accounts) {
 
   it("creates a ETHOrderBook that is owned by the OrderBookManager", async function() {
     let block = await web3.eth.blocknumber;
-    let tx = await orderBookFactory.createETHOrderBook({from: seller});
+    let tx = await orderBookFactory.createETHOrderBook(country, {from: seller});
     var orderBookCreatedEvent = orderBookFactory.ETHOrderBookCreated({seller: seller},{fromBlock: block, toBlock: tx.receipt.blockNumber});
     orderBookCreatedEvent.watch(async function(error, result) {
       if(error) {
