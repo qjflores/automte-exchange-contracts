@@ -3,10 +3,9 @@ pragma solidity ^0.4.11;
 import "./zeppelin/ownership/Ownable.sol";
 import "./zeppelin/SafeMath.sol";
 import "./OrderBook.sol";
-import "../oraclize-ethereum-api/oraclizeAPI_0.4.sol";
 
-
-contract ETHOrderBook is Ownable, usingOraclize {
+//Mocked contract that does not use oraclize. FOR TESTING ONLY
+contract ETHOrderBookMock is Ownable {
   using SafeMath for uint;
 
   OrderBook.Orders orderBook;
@@ -21,7 +20,7 @@ contract ETHOrderBook is Ownable, usingOraclize {
 
   mapping(bytes32 => string) disputeQueryIds;
 
-  function ETHOrderBook(address _seller, address _disputeResolver, string _country, uint _feePercent, uint min, uint max) {
+  function ETHOrderBookMock(address _seller, address _disputeResolver, string _country, uint _feePercent, uint min, uint max) {
     seller = _seller;
     disputeResolver = _disputeResolver;
     country = _country;
@@ -82,17 +81,9 @@ contract ETHOrderBook is Ownable, usingOraclize {
 
   event OrderDisputed(string uid, address seller, address buyer);
 
+  //MOCKED: always sets order to disputed
   function checkDispute(string uid) onlyDisputeResolver statusIs(uid, OrderBook.Status.Open) {
-    disputeQueryIds[oraclize_query("URL", "json(https://us-central1-automteetherexchange.cloudfunctions.net/checkDispute).dispute", strConcat('\n{"country" :"', country, '", "orderId": "', uid, '"}'))] = uid;
-  }
-
-  function __callback(bytes32 id, string result) {
-    if(msg.sender != oraclize_cbAddress() || strCompare(disputeQueryIds[id], "VOID") == 0) throw;
-    if(strCompare(result, "true") == 0) {
-      orderBook.orders[disputeQueryIds[id]].status = OrderBook.Status.Disputed;
-      OrderDisputed(disputeQueryIds[id], seller, orderBook.orders[disputeQueryIds[id]].buyer);
-    }
-    disputeQueryIds[id] = "VOID";
+    orderBook.orders[uid].status = OrderBook.Status.Disputed;
   }
 
   event DisputeResolved(string uid, address seller, address buyer, string resolvedTo);

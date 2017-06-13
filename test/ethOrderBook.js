@@ -1,4 +1,5 @@
 var ETHOrderBook = artifacts.require("./ETHOrderBook.sol");
+var DisputeResolver = artifacts.require("./DisputeResolver.sol");
 
 const assertInvalidOpcode = require('./helpers/assertInvalidOpcode');
 
@@ -8,8 +9,9 @@ const ether = function(amount) {
 
 
 contract('ETHOrderBook', function(accounts) {
-  var ethOrderBook;
+  var ethOrderBook, disputeResolver;
   var owner = accounts[0];
+  var owners = [accounts[0], accounts[3], accounts[4]];
   var seller = accounts[1];
   var buyer = accounts[2];
   var min = ether(0.2);
@@ -19,7 +21,8 @@ contract('ETHOrderBook', function(accounts) {
   const feePercent = 0.01;
 
   it("creates ETHOrderBook with availableBalance of 0", async function() {
-    ethOrderBook = await ETHOrderBook.new(seller, country, 1, min, max, {from: owner});
+    disputeResolver = await DisputeResolver.new(owners);
+    ethOrderBook = await ETHOrderBook.new(seller, disputeResolver.address, country, 1, min, max, {from: owner});
     assert.equal(await ethOrderBook.availableBalance(), 0);
   });
 

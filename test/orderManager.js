@@ -51,6 +51,7 @@ contract('OrderBookFactory', function(accounts) {
 
   it("takes 3 votes for OrderBookManager to changeOwnership of Router", async function() {
     let newOwner = accounts[5];
+    //var myCallData = myContractInstance.myMethod.getData(param1 [, param2, ...]);
     await orderBookManager.changeRouterOwner(newOwner, {from: owners[0]});
     assert.equal(await router.owner(), orderBookManager.address);
     await orderBookManager.changeRouterOwner(newOwner, {from: owners[1]});
