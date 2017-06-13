@@ -2,7 +2,7 @@ pragma solidity ^0.4.11;
 
 import "./ETHOrderBookMock.sol";
 
-contract DisputeResolverMock {
+contract DisputeResolver {
 
   // list of owners
   address[256] owners;
@@ -17,13 +17,18 @@ contract DisputeResolverMock {
     _;
   }
 
-  //maps uid to assignee's address
-  mapping(string => address) assignments;
+  enum Status { Assigned, ResolvedSeller, ResolvedBuyer }
 
-  //maps uid to ETHOrderBookMock address
-  mapping(string => address) disputes;
+  struct Dispute {
+    address assignee;
+    address ethOrderBook;
+    Status status;
+  }
 
-  function DisputeResolverMock(address[] _owners) {
+  //maps uid to Dispute
+  mapping(string => Dispute) disputes;
+
+  function DisputeResolver(address[] _owners) {
     owners[1] = msg.sender;
     ownerIndex[msg.sender] = 1;
     for (uint i = 0; i < _owners.length; ++i) {
@@ -32,36 +37,47 @@ contract DisputeResolverMock {
     }
   }
 
-  event DisputeAssigned(address ethOrderBookMock, string uid, address assignee, address assigner);
-  event DisputeChecked(address ethOrderBookMock, string uid, address assignee);
-  event DisputeResolved(address ethOrderBookMock, string uid, string resolvedTo, address assignee);
+  event DisputeAssigned(address ethOrderBook, string uid, address assignee, address assigner);
+  event DisputeEscalated(address ethOrderBook, string uid, address assignee, address assigner);
+  event DisputeChecked(address ethOrderBook, string uid, address assignee);
+  event DisputeResolved(address ethOrderBook, string uid, string resolvedTo, address assignee);
 
-  function assignDispute(address ethOrderBookMock, string uid, address assignee) onlyOwner {
-    assignments[uid] = assignee;
-    disputes[uid] = ethOrderBookMock;
-    DisputeAssigned(ethOrderBookMock, uid, assignee, msg.sender);
+  function assignDispute(address ethOrderBook, string uid, address assignee) onlyOwner {
+    disputes[uid].assignee = assignee;
+    disputes[uid].ethOrderBook = ethOrderBook;
+    disputes[uid].status = Status.Assigned;
+    DisputeAssigned(ethOrderBook, uid, assignee, msg.sender);
+  }
+
+  function escalateDispute(string uid, address owner) onlyAssignee(uid) {
+    if(disputes[uid].status != Status.Assigned || !isOwner(owner))
+      throw;
+    disputes[uid].assignee = owner;
+    DisputeEscalated(disputes[uid].ethOrderBook, uid, owner, msg.sender);
   }
 
   function checkDispute(string uid) onlyAssignee(uid) {
-    ETHOrderBookMock orderBook = ETHOrderBookMock(disputes[uid]);
+    ETHOrderBookMock orderBook = ETHOrderBookMock(disputes[uid].ethOrderBook);
     orderBook.checkDispute(uid);
-    DisputeChecked(disputes[uid], uid, msg.sender);
+    DisputeChecked(disputes[uid].ethOrderBook, uid, msg.sender);
   }
 
   function resolveDisputeSeller(string uid) onlyAssignee(uid) {
-    ETHOrderBookMock orderBook = ETHOrderBookMock(disputes[uid]);
+    ETHOrderBookMock orderBook = ETHOrderBookMock(disputes[uid].ethOrderBook);
     orderBook.resolveDisputeSeller(uid);
-    DisputeResolved(disputes[uid], uid, 'seller', msg.sender);
+    disputes[uid].status = Status.ResolvedSeller;
+    DisputeResolved(disputes[uid].ethOrderBook, uid, 'seller', msg.sender);
   }
 
   function resolveDisputeBuyer(string uid) onlyAssignee(uid) {
-    ETHOrderBookMock orderBook = ETHOrderBookMock(disputes[uid]);
+    ETHOrderBookMock orderBook = ETHOrderBookMock(disputes[uid].ethOrderBook);
     orderBook.resolveDisputeBuyer(uid);
-    DisputeResolved(disputes[uid], uid, 'buyer', msg.sender);
+    disputes[uid].status = Status.ResolvedBuyer;
+    DisputeResolved(disputes[uid].ethOrderBook, uid, 'buyer', msg.sender);
   }
 
   modifier onlyAssignee(string uid) {
-    if(assignments[uid] != msg.sender)
+    if(disputes[uid].assignee != msg.sender)
       throw;
     _;
   }

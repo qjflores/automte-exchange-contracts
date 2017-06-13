@@ -17,11 +17,16 @@ contract DisputeResolver {
     _;
   }
 
-  //maps uid to assignee's address
-  mapping(string => address) assignments;
+  enum Status { Assigned, ResolvedSeller, ResolvedBuyer }
 
-  //maps uid to ETHOrderBook address
-  mapping(string => address) disputes;
+  struct Dispute {
+    address assignee;
+    address ethOrderBook;
+    Status status;
+  }
+
+  //maps uid to Dispute
+  mapping(string => Dispute) disputes;
 
   function DisputeResolver(address[] _owners) {
     owners[1] = msg.sender;
@@ -33,35 +38,46 @@ contract DisputeResolver {
   }
 
   event DisputeAssigned(address ethOrderBook, string uid, address assignee, address assigner);
+  event DisputeEscalated(address ethOrderBook, string uid, address assignee, address assigner);
   event DisputeChecked(address ethOrderBook, string uid, address assignee);
   event DisputeResolved(address ethOrderBook, string uid, string resolvedTo, address assignee);
 
   function assignDispute(address ethOrderBook, string uid, address assignee) onlyOwner {
-    assignments[uid] = assignee;
-    disputes[uid] = ethOrderBook;
+    disputes[uid].assignee = assignee;
+    disputes[uid].ethOrderBook = ethOrderBook;
+    disputes[uid].status = Status.Assigned;
     DisputeAssigned(ethOrderBook, uid, assignee, msg.sender);
   }
 
+  function escalateDispute(string uid, address owner) onlyAssignee(uid) {
+    if(disputes[uid].status != Status.Assigned || !isOwner(owner))
+      throw;
+    disputes[uid].assignee = owner;
+    DisputeEscalated(disputes[uid].ethOrderBook, uid, owner, msg.sender);
+  }
+
   function checkDispute(string uid) onlyAssignee(uid) {
-    ETHOrderBook orderBook = ETHOrderBook(disputes[uid]);
+    ETHOrderBook orderBook = ETHOrderBook(disputes[uid].ethOrderBook);
     orderBook.checkDispute(uid);
-    DisputeChecked(disputes[uid], uid, msg.sender);
+    DisputeChecked(disputes[uid].ethOrderBook, uid, msg.sender);
   }
 
   function resolveDisputeSeller(string uid) onlyAssignee(uid) {
-    ETHOrderBook orderBook = ETHOrderBook(disputes[uid]);
+    ETHOrderBook orderBook = ETHOrderBook(disputes[uid].ethOrderBook);
     orderBook.resolveDisputeSeller(uid);
-    DisputeResolved(disputes[uid], uid, 'seller', msg.sender);
+    disputes[uid].status = Status.ResolvedSeller;
+    DisputeResolved(disputes[uid].ethOrderBook, uid, 'seller', msg.sender);
   }
 
   function resolveDisputeBuyer(string uid) onlyAssignee(uid) {
-    ETHOrderBook orderBook = ETHOrderBook(disputes[uid]);
+    ETHOrderBook orderBook = ETHOrderBook(disputes[uid].ethOrderBook);
     orderBook.resolveDisputeBuyer(uid);
-    DisputeResolved(disputes[uid], uid, 'buyer', msg.sender);
+    disputes[uid].status = Status.ResolvedBuyer;
+    DisputeResolved(disputes[uid].ethOrderBook, uid, 'buyer', msg.sender);
   }
 
   modifier onlyAssignee(string uid) {
-    if(assignments[uid] != msg.sender)
+    if(disputes[uid].assignee != msg.sender)
       throw;
     _;
   }
