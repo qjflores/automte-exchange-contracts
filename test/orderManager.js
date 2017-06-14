@@ -2,29 +2,30 @@ var OrderBookManager = artifacts.require("./OrderBookManager.sol");
 var OrderBookFactory = artifacts.require("./OrderBookFactory.sol");
 var ETHOrderBook = artifacts.require("./ETHOrderBook.sol");
 var Router = artifacts.require("./Router.sol");
+var MultiSigWallet = artifacts.require("./MultiSigWallet.sol");
 
 
 contract('OrderBookFactory', function(accounts) {
   var owners = [accounts[0], accounts[1], accounts[2]];
   var buyer = accounts[3];
   var seller = accounts[4];
-  var orderBookManager, router, orderBookFactory, ethOrderBook;
+  var orderBookManager, router, orderBookFactory, ethOrderBook, multisig;
   var feePercent = 0.01;
   var amount = 1;
   var country = "IN";
 
   it("creates a Router which sends all incoming Ether to OrderBookManager", async function() {
     router = await Router.new();
-    orderBookManager = await OrderBookManager.new(owners, 3, 0, router.address);
-    await router.transferOwnership(orderBookManager.address);
+    multisig = await MultiSigWallet.new(owners, 3);
+    await router.transferOwnership(multisig.address);
 
-    let managerBalance = await web3.eth.getBalance(orderBookManager.address);
+    let multisigBalance = await web3.eth.getBalance(multisig.address);
     let routerBalance = await web3.eth.getBalance(router.address);
 
     let value = web3.toWei(0.01, 'ether');
     await web3.eth.sendTransaction({from: accounts[0], to: router.address, value: value});
 
-    assert( (await web3.eth.getBalance(orderBookManager.address)).equals(managerBalance.plus(value)) );
+    assert( (await web3.eth.getBalance(multisig.address)).equals(multisigBalance.plus(value)) );
 
   })
 
@@ -52,12 +53,19 @@ contract('OrderBookFactory', function(accounts) {
   it("takes 3 votes for OrderBookManager to changeOwnership of Router", async function() {
     let newOwner = accounts[5];
     //var myCallData = myContractInstance.myMethod.getData(param1 [, param2, ...]);
-    await orderBookManager.changeRouterOwner(newOwner, {from: owners[0]});
-    assert.equal(await router.owner(), orderBookManager.address);
-    await orderBookManager.changeRouterOwner(newOwner, {from: owners[1]});
-    assert.equal(await router.owner(), orderBookManager.address);
-    await orderBookManager.changeRouterOwner(newOwner, {from: owners[2]});
-    assert.equal(await router.owner(), newOwner);
+    var callData = router.contract.transferOwnership.getData(newOwner);
+    await multisig.submitTransaction(router.address, 0, callData, {from: owners[0]});
+    assert.equal(await router.owner(), multisig.address);
+    var txConfirmedEvent = multisig.Confirmation({sender: owners[0]});
+
+    txConfirmedEvent.watch(async function(error, result) {
+        var id = result["args"]["transactionId"];
+        await multisig.confirmTransaction(id, {from: owners[1]});
+        assert.equal(await router.owner(), multisig.address);
+        await multisig.confirmTransaction(id, {from: owners[2]});
+        assert.equal(await router.owner(), newOwner);
+        txConfirmedEvent.stopWatching();
+    });
   })
 
 });
