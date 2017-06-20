@@ -1,11 +1,8 @@
 pragma solidity ^0.4.11;
-//"-KkB0qMpH-dz7KTvPC9v", "0x5bF90665B051c36cE54388a487D1021F3fAdd999", "100000000000000000", 18000, "USD"
-import "./zeppelin/ownership/Ownable.sol";
-import "./zeppelin/SafeMath.sol";
-import "./OrderBook.sol";
 
-//Mocked contract that does not use oraclize. FOR TESTING ONLY
-contract ETHOrderBookMock is Ownable {
+import "./ETHOrderBook.sol";
+
+contract ETHOrderBookMock is ETHOrderBook {
   using SafeMath for uint;
 
   OrderBook.Orders orderBook;
@@ -20,123 +17,14 @@ contract ETHOrderBookMock is Ownable {
 
   mapping(bytes32 => string) disputeQueryIds;
 
-  function ETHOrderBookMock(address _seller, address _disputeResolver, string _country, uint _feePercent, uint min, uint max) {
-    seller = _seller;
-    disputeResolver = _disputeResolver;
-    country = _country;
-    feePercent = _feePercent;
-    MINIMUM_ORDER_AMOUNT = min;
-    MAXIMUM_ORDER_AMOUNT = max;
-    availableBalance = 0;
+  function ETHOrderBookMock(address _seller, address _disputeResolver, string _country, uint _feePercent, uint min, uint max)
+    ETHOrderBook(_seller, _disputeResolver, _country, _feePercent, min, max)
+  {
+
   }
 
-  event BalanceUpdated(uint availableBalance);
-  function () payable {
-    //Is there a reason to limit this to only the seller's address?
-    //availableBalance += msg.value;
-    availableBalance = availableBalance.add(msg.value);
-    BalanceUpdated(availableBalance);
-  }
-
-
-  function calculateFee(uint amount) returns (uint) {
-    //((amount * 100) * feePercent) / 10000
-    return ((amount.mul(100)).mul(feePercent)).div(10000);
-  }
-
-  event OrderAdded(string uid, address seller, address buyer, uint amount, uint price, string currency, uint availableBalance);
-
-  function addOrder(string uid, address buyer, uint amount, uint price, string currency) {
-    uint fee = calculateFee(amount);
-
-    if(
-         msg.sender != seller //only seller can add orders
-      || amount <= MINIMUM_ORDER_AMOUNT //don't add order if amount is less than or equal to minimum order amount
-      || amount > MAXIMUM_ORDER_AMOUNT //don't add order if amount is greater than maximum order amount
-      || amount.add(fee) > availableBalance //don't add order if amount with fee exceeds available funds
-      || orderBook.orders[uid].amount > 0 //don't add order if an order with the same UID already exists
-    )
-      throw;
-
-    OrderBook.addOrder(orderBook, uid, buyer, amount, price, currency, fee);
-
-    availableBalance = availableBalance.sub(amount.add(fee));
-
-    OrderAdded(uid, seller, buyer, amount, price, currency, availableBalance);
-  }
-
-  event OrderCompleted(string uid, address seller, address buyer, uint amount);
-
-  function completeOrder(string uid) onlySeller statusIs(uid, OrderBook.Status.Open) {
-    if(!orderBook.orders[uid].buyer.send(orderBook.orders[uid].amount))
-      throw;
-
-    if(!owner.send(orderBook.orders[uid].fee))
-      throw;
-
-    OrderCompleted(uid, seller, orderBook.orders[uid].buyer, orderBook.orders[uid].amount);
-
-    orderBook.orders[uid].status = OrderBook.Status.Complete;
-  }
-
-  event OrderDisputed(string uid, address seller, address buyer);
-
-  //MOCKED: always sets order to disputed
   function checkDispute(string uid) onlyDisputeResolver statusIs(uid, OrderBook.Status.Open) {
     orderBook.orders[uid].status = OrderBook.Status.Disputed;
-  }
-
-  event DisputeResolved(string uid, address seller, address buyer, string resolvedTo);
-
-  //Resolve dispute in favor of seller
-  function resolveDisputeSeller(string uid) onlyDisputeResolver statusIs(uid, OrderBook.Status.Disputed) {
-    availableBalance = availableBalance.add(orderBook.orders[uid].amount.add(orderBook.orders[uid].fee));
-
-    orderBook.orders[uid].status = OrderBook.Status.ResolvedSeller;
-
-    DisputeResolved(uid, seller, orderBook.orders[uid].buyer, 'seller');
-  }
-
-  //Resolve dispute in favor of buyer
-  function resolveDisputeBuyer(string uid) onlyDisputeResolver statusIs(uid, OrderBook.Status.Disputed) {
-    if(!orderBook.orders[uid].buyer.send(orderBook.orders[uid].amount))
-      throw;
-
-    if(!owner.send(orderBook.orders[uid].fee))
-      throw;
-
-    orderBook.orders[uid].status = OrderBook.Status.ResolvedBuyer;
-
-    DisputeResolved(uid, seller, orderBook.orders[uid].buyer, 'buyer');
-  }
-
-  function withdraw(uint amount) onlySeller {
-    if(amount > availableBalance)
-      throw;
-
-    if(!seller.send(amount)) {
-      throw;
-    } else {
-      availableBalance = availableBalance.sub(amount);
-    }
-  }
-
-  modifier statusIs(string uid, OrderBook.Status status) {
-    if(orderBook.orders[uid].status != status)
-      throw;
-    _;
-  }
-
-  modifier onlySeller() {
-    if(msg.sender != seller)
-      throw;
-    _;
-  }
-
-  modifier onlyDisputeResolver() {
-    if(msg.sender != disputeResolver)
-      throw;
-    _;
   }
 
 }

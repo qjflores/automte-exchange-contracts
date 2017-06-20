@@ -49,13 +49,6 @@ contract DisputeResolver {
     DisputeAssigned(ethOrderBook, uid, assignee, msg.sender);
   }
 
-  function escalateDispute(string uid, address owner) onlyAssignee(uid) {
-    if(disputes[uid].status != Status.Assigned || !isOwner(owner))
-      throw;
-    disputes[uid].assignee = owner;
-    DisputeEscalated(disputes[uid].ethOrderBook, uid, owner, msg.sender);
-  }
-
   function checkDispute(string uid) onlyAssignee(uid) {
     ETHOrderBook orderBook = ETHOrderBook(disputes[uid].ethOrderBook);
     orderBook.checkDispute(uid);
@@ -77,7 +70,7 @@ contract DisputeResolver {
   }
 
   modifier onlyAssignee(string uid) {
-    if(disputes[uid].assignee != msg.sender)
+    if(disputes[uid].assignee != msg.sender && !isOwner(msg.sender))
       throw;
     _;
   }

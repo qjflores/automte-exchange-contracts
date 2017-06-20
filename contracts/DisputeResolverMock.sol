@@ -2,7 +2,7 @@ pragma solidity ^0.4.11;
 
 import "./ETHOrderBookMock.sol";
 
-contract DisputeResolver {
+contract DisputeResolverMock {
 
   // list of owners
   address[256] owners;
@@ -28,7 +28,7 @@ contract DisputeResolver {
   //maps uid to Dispute
   mapping(string => Dispute) disputes;
 
-  function DisputeResolver(address[] _owners) {
+  function DisputeResolverMock(address[] _owners) {
     owners[1] = msg.sender;
     ownerIndex[msg.sender] = 1;
     for (uint i = 0; i < _owners.length; ++i) {
@@ -47,13 +47,6 @@ contract DisputeResolver {
     disputes[uid].ethOrderBook = ethOrderBook;
     disputes[uid].status = Status.Assigned;
     DisputeAssigned(ethOrderBook, uid, assignee, msg.sender);
-  }
-
-  function escalateDispute(string uid, address owner) onlyAssignee(uid) {
-    if(disputes[uid].status != Status.Assigned || !isOwner(owner))
-      throw;
-    disputes[uid].assignee = owner;
-    DisputeEscalated(disputes[uid].ethOrderBook, uid, owner, msg.sender);
   }
 
   function checkDispute(string uid) onlyAssignee(uid) {
@@ -77,7 +70,7 @@ contract DisputeResolver {
   }
 
   modifier onlyAssignee(string uid) {
-    if(disputes[uid].assignee != msg.sender)
+    if(disputes[uid].assignee != msg.sender && !isOwner(msg.sender))
       throw;
     _;
   }

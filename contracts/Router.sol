@@ -4,8 +4,6 @@ import "./zeppelin/ownership/Ownable.sol";
 
 contract Router is Ownable {
 
-  uint public feePercent;
-
   function Router() {
 
   }

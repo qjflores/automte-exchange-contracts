@@ -2,9 +2,32 @@ pragma solidity ^0.4.11;
 //"-KkB0qMpH-dz7KTvPC9v", "0x5bF90665B051c36cE54388a487D1021F3fAdd999", "100000000000000000", 18000, "USD"
 import "./zeppelin/ownership/Ownable.sol";
 import "./zeppelin/SafeMath.sol";
-import "./OrderBook.sol";
 import "../oraclize-ethereum-api/oraclizeAPI_0.4.sol";
 
+
+library OrderBook {
+  enum Status { Open, Complete, Disputed, ResolvedSeller, ResolvedBuyer }
+
+  struct Order {
+    address buyer;
+    uint amount;
+    uint price;
+    string currency;
+    uint fee;
+    Status status;
+  }
+
+  struct Orders{ mapping(string => Order) orders; }
+
+  function addOrder(Orders storage self, string uid, address buyer, uint amount, uint price, string currency, uint fee) {
+    self.orders[uid].buyer = buyer;
+    self.orders[uid].amount = amount;
+    self.orders[uid].price = price;
+    self.orders[uid].currency = currency;
+    self.orders[uid].fee = fee;
+    self.orders[uid].status = Status.Open;
+  }
+}
 
 contract ETHOrderBook is Ownable, usingOraclize {
   using SafeMath for uint;
