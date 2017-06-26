@@ -17,12 +17,9 @@ contract DisputeResolver {
     _;
   }
 
-  enum Status { Assigned, ResolvedSeller, ResolvedBuyer }
-
   struct Dispute {
     address assignee;
     address ethOrderBook;
-    Status status;
   }
 
   //maps uid to Dispute
@@ -49,7 +46,6 @@ contract DisputeResolver {
   function assignDispute(address ethOrderBook, string uid, address assignee) onlyOwner {
     disputes[uid].assignee = assignee;
     disputes[uid].ethOrderBook = ethOrderBook;
-    disputes[uid].status = Status.Assigned;
     disputeInterface.checkDispute(uid, ethOrderBook);
     DisputeAssigned(ethOrderBook, uid, assignee, msg.sender);
   }
