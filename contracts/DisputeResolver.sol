@@ -1,6 +1,5 @@
 pragma solidity ^0.4.11;
 
-import "./ETHOrderBook.sol";
 import "./DisputeInterface.sol";
 
 contract DisputeResolver {
@@ -31,6 +30,7 @@ contract DisputeResolver {
 
   DisputeInterface disputeInterface;
 
+  //note: sets msg.sender as owner
   function DisputeResolver(address[] _owners, address _disputeInterface) {
     owners[1] = msg.sender;
     ownerIndex[msg.sender] = 1;
