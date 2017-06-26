@@ -1,5 +1,5 @@
 pragma solidity ^0.4.11;
-//"-KkB0qMpH-dz7KTvPC9v", "0x5bF90665B051c36cE54388a487D1021F3fAdd999", "100000000000000000", 18000, "USD"
+
 import "./zeppelin/ownership/Ownable.sol";
 import "./zeppelin/SafeMath.sol";
 import "../oraclize-ethereum-api/oraclizeAPI_0.4.sol";
@@ -39,18 +39,18 @@ contract ETHOrderBook is Ownable, usingOraclize {
   uint feePercent; // 1 = 1% fee
   address disputeResolver;
 
-  uint MINIMUM_ORDER_AMOUNT; //inclusive
-  uint MAXIMUM_ORDER_AMOUNT; //exclusive
+//   uint MINIMUM_ORDER_AMOUNT; //inclusive
+//   uint MAXIMUM_ORDER_AMOUNT; //exclusive
 
   mapping(bytes32 => string) disputeQueryIds;
 
-  function ETHOrderBook(address _seller, address _disputeResolver, string _country, uint _feePercent, uint min, uint max) {
+  function ETHOrderBook(address _seller, address _disputeResolver, string _country, uint _feePercent) {
     seller = _seller;
     disputeResolver = _disputeResolver;
     country = _country;
     feePercent = _feePercent;
-    MINIMUM_ORDER_AMOUNT = min;
-    MAXIMUM_ORDER_AMOUNT = max;
+    // MINIMUM_ORDER_AMOUNT = min;
+    // MAXIMUM_ORDER_AMOUNT = max;
     availableBalance = 0;
   }
 
@@ -68,15 +68,15 @@ contract ETHOrderBook is Ownable, usingOraclize {
     return ((amount.mul(100)).mul(feePercent)).div(10000);
   }
 
-  event OrderAdded(string uid, address seller, address buyer, uint amount, uint price, string currency, uint availableBalance);
+  event OrderAdded(string uid, address seller, address buyer, uint amount, uint price, string currency, OrderBook.Status status, uint availableBalance);
 
   function addOrder(string uid, address buyer, uint amount, uint price, string currency) {
     uint fee = calculateFee(amount);
 
     if(
          msg.sender != seller //only seller can add orders
-      || amount <= MINIMUM_ORDER_AMOUNT //don't add order if amount is less than or equal to minimum order amount
-      || amount > MAXIMUM_ORDER_AMOUNT //don't add order if amount is greater than maximum order amount
+    //   || amount <= MINIMUM_ORDER_AMOUNT //don't add order if amount is less than or equal to minimum order amount
+    //   || amount > MAXIMUM_ORDER_AMOUNT //don't add order if amount is greater than maximum order amount
       || amount.add(fee) > availableBalance //don't add order if amount with fee exceeds available funds
       || orderBook.orders[uid].amount > 0 //don't add order if an order with the same UID already exists
     )
@@ -86,7 +86,7 @@ contract ETHOrderBook is Ownable, usingOraclize {
 
     availableBalance = availableBalance.sub(amount.add(fee));
 
-    OrderAdded(uid, seller, buyer, amount, price, currency, availableBalance);
+    OrderAdded(uid, seller, buyer, amount, price, currency, orderBook.orders[uid].status, availableBalance);
   }
 
   event OrderCompleted(string uid, address seller, address buyer, uint amount);
