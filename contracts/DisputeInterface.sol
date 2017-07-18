@@ -5,7 +5,8 @@ import "./ETHOrderBook.sol";
 
 contract DisputeInterface is Ownable {
 
-  address disputeResolver;
+  address public disputeResolver;
+  bytes32 public queryId;
 
   function DisputeInterface() {
     disputeResolver = 0x0;
@@ -15,9 +16,9 @@ contract DisputeInterface is Ownable {
     disputeResolver = _disputeResolver;
   }
 
-  function checkDispute(string uid, address ethOrderBook) onlyDisputeResolver {
-    ETHOrderBook orderBook = ETHOrderBook(ethOrderBook);
-    orderBook.checkDispute(uid);
+  function setDisputed(address _orderBook, string uid) onlyDisputeResolver {
+    ETHOrderBook orderBook = ETHOrderBook(_orderBook);
+    orderBook.setDisputed(uid);
   }
 
   function resolveDisputeSeller(string uid, address ethOrderBook) onlyDisputeResolver {

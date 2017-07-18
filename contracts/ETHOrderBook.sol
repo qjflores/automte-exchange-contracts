@@ -2,37 +2,12 @@ pragma solidity ^0.4.11;
 
 import "./zeppelin/ownership/Ownable.sol";
 import "./zeppelin/SafeMath.sol";
-import "../oraclize-ethereum-api/oraclizeAPI_0.4.sol";
+import "./OrderDBI.sol";
 
-
-library OrderBook {
-  enum Status { Open, Complete, Disputed, ResolvedSeller, ResolvedBuyer }
-
-  struct Order {
-    address buyer;
-    uint amount;
-    uint price;
-    string currency;
-    uint fee;
-    Status status;
-  }
-
-  struct Orders{ mapping(string => Order) orders; }
-
-  function addOrder(Orders storage self, string uid, address buyer, uint amount, uint price, string currency, uint fee) {
-    self.orders[uid].buyer = buyer;
-    self.orders[uid].amount = amount;
-    self.orders[uid].price = price;
-    self.orders[uid].currency = currency;
-    self.orders[uid].fee = fee;
-    self.orders[uid].status = Status.Open;
-  }
-}
-
-contract ETHOrderBook is Ownable, usingOraclize {
+contract ETHOrderBook is Ownable {
   using SafeMath for uint;
 
-  OrderBook.Orders orderBook;
+  OrderDBI orderDb;
   address public seller;
   string country;
   uint public availableBalance;
@@ -44,8 +19,9 @@ contract ETHOrderBook is Ownable, usingOraclize {
 
   mapping(bytes32 => string) disputeQueryIds;
 
-  function ETHOrderBook(address _seller, address _disputeResolver, string _country, uint _feePercent) {
+  function ETHOrderBook(address _seller, address _orderDb, address _disputeResolver, string _country, uint _feePercent) {
     seller = _seller;
+    orderDb = OrderDBI(_orderDb);
     disputeResolver = _disputeResolver;
     country = _country;
     feePercent = _feePercent;
@@ -55,7 +31,15 @@ contract ETHOrderBook is Ownable, usingOraclize {
   }
 
   event BalanceUpdated(uint availableBalance);
+
   function () payable {
+    //Is there a reason to limit this to only the seller's address?
+    //availableBalance += msg.value;
+    availableBalance = availableBalance.add(msg.value);
+    BalanceUpdated(availableBalance);
+  }
+
+  function pay() payable {
     //Is there a reason to limit this to only the seller's address?
     //availableBalance += msg.value;
     availableBalance = availableBalance.add(msg.value);
@@ -68,7 +52,7 @@ contract ETHOrderBook is Ownable, usingOraclize {
     return ((amount.mul(100)).mul(feePercent)).div(10000);
   }
 
-  event OrderAdded(string uid, address seller, address buyer, uint amount, uint price, string currency, OrderBook.Status status, uint availableBalance);
+  event OrderAdded(string uid, address seller, address buyer, uint amount, uint price, string currency, uint availableBalance);
 
   function addOrder(string uid, address buyer, uint amount, uint price, string currency) {
     uint fee = calculateFee(amount);
@@ -78,68 +62,60 @@ contract ETHOrderBook is Ownable, usingOraclize {
     //   || amount <= MINIMUM_ORDER_AMOUNT //don't add order if amount is less than or equal to minimum order amount
     //   || amount > MAXIMUM_ORDER_AMOUNT //don't add order if amount is greater than maximum order amount
       || amount.add(fee) > availableBalance //don't add order if amount with fee exceeds available funds
-      || orderBook.orders[uid].amount > 0 //don't add order if an order with the same UID already exists
+      || orderDb.getAmount(uid) > 0 //don't add order if an order with the same UID already exists
     )
       throw;
 
-    OrderBook.addOrder(orderBook, uid, buyer, amount, price, currency, fee);
+    orderDb.addOrder(uid, buyer, amount, price, currency, fee);
 
     availableBalance = availableBalance.sub(amount.add(fee));
 
-    OrderAdded(uid, seller, buyer, amount, price, currency, orderBook.orders[uid].status, availableBalance);
+    OrderAdded(uid, seller, buyer, amount, price, currency, availableBalance);
   }
 
   event OrderCompleted(string uid, address seller, address buyer, uint amount);
 
-  function completeOrder(string uid) onlySeller statusIs(uid, OrderBook.Status.Open) {
-    if(!orderBook.orders[uid].buyer.send(orderBook.orders[uid].amount))
+  function completeOrder(string uid) onlySeller statusIs(uid, OrderDBI.Status.Open) {
+    if(!orderDb.getBuyer(uid).send(orderDb.getAmount(uid)))
       throw;
 
-    if(!owner.send(orderBook.orders[uid].fee))
+    if(!owner.send(orderDb.getFee(uid)))
       throw;
 
-    OrderCompleted(uid, seller, orderBook.orders[uid].buyer, orderBook.orders[uid].amount);
+    OrderCompleted(uid, seller, orderDb.getBuyer(uid), orderDb.getAmount(uid));
 
-    orderBook.orders[uid].status = OrderBook.Status.Complete;
+    orderDb.setStatus(uid, OrderDBI.Status.Complete);
   }
 
   event OrderDisputed(string uid, address seller, address buyer);
 
-  function checkDispute(string uid) onlyDisputeResolver statusIs(uid, OrderBook.Status.Open) {
-    disputeQueryIds[oraclize_query("URL", "json(https://us-central1-automteetherexchange.cloudfunctions.net/checkDispute).dispute", strConcat('\n{"country" :"', country, '", "orderId": "', uid, '"}'))] = uid;
-  }
-
-  function __callback(bytes32 id, string result) {
-    if(msg.sender != oraclize_cbAddress() || strCompare(disputeQueryIds[id], "VOID") == 0) throw;
-    if(strCompare(result, "true") == 0) {
-      orderBook.orders[disputeQueryIds[id]].status = OrderBook.Status.Disputed;
-      OrderDisputed(disputeQueryIds[id], seller, orderBook.orders[disputeQueryIds[id]].buyer);
-    }
-    disputeQueryIds[id] = "VOID";
+  function setDisputed(string uid) onlyDisputeResolver statusIs(uid, OrderDBI.Status.Open) {
+    orderDb.setStatus(uid, OrderDBI.Status.Disputed);
+    OrderDisputed(uid, seller, orderDb.getBuyer(uid));
   }
 
   event DisputeResolved(string uid, address seller, address buyer, string resolvedTo);
 
   //Resolve dispute in favor of seller
-  function resolveDisputeSeller(string uid) onlyDisputeResolver statusIs(uid, OrderBook.Status.Disputed) {
-    availableBalance = availableBalance.add(orderBook.orders[uid].amount.add(orderBook.orders[uid].fee));
+  function resolveDisputeSeller(string uid) onlyDisputeResolver statusIs(uid, OrderDBI.Status.Disputed) {
+    availableBalance = availableBalance.add(orderDb.getAmount(uid).add(orderDb.getFee(uid)));
 
-    orderBook.orders[uid].status = OrderBook.Status.ResolvedSeller;
+    orderDb.setStatus(uid, OrderDBI.Status.ResolvedSeller);
 
-    DisputeResolved(uid, seller, orderBook.orders[uid].buyer, 'seller');
+    DisputeResolved(uid, seller, orderDb.getBuyer(uid), 'seller');
   }
 
   //Resolve dispute in favor of buyer
-  function resolveDisputeBuyer(string uid) onlyDisputeResolver statusIs(uid, OrderBook.Status.Disputed) {
-    if(!orderBook.orders[uid].buyer.send(orderBook.orders[uid].amount))
+  function resolveDisputeBuyer(string uid) onlyDisputeResolver statusIs(uid, OrderDBI.Status.Disputed) {
+    if(!orderDb.getBuyer(uid).send(orderDb.getAmount(uid)))
       throw;
 
-    if(!owner.send(orderBook.orders[uid].fee))
+    if(!owner.send(orderDb.getFee(uid)))
       throw;
 
-    orderBook.orders[uid].status = OrderBook.Status.ResolvedBuyer;
+    orderDb.setStatus(uid, OrderDBI.Status.ResolvedBuyer);
 
-    DisputeResolved(uid, seller, orderBook.orders[uid].buyer, 'buyer');
+    DisputeResolved(uid, seller, orderDb.getBuyer(uid), 'buyer');
   }
 
   function withdraw(uint amount) onlySeller {
@@ -153,8 +129,8 @@ contract ETHOrderBook is Ownable, usingOraclize {
     }
   }
 
-  modifier statusIs(string uid, OrderBook.Status status) {
-    if(orderBook.orders[uid].status != status)
+  modifier statusIs(string uid, OrderDBI.Status status) {
+    if(orderDb.getStatus(uid) != status)
       throw;
     _;
   }

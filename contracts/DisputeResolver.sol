@@ -1,8 +1,9 @@
 pragma solidity ^0.4.11;
 
 import "./DisputeInterface.sol";
+import "../oraclize-ethereum-api/oraclizeAPI_0.4.sol";
 
-contract DisputeResolver {
+contract DisputeResolver is usingOraclize {
 
   // list of owners
   address[256] owners;
@@ -17,13 +18,19 @@ contract DisputeResolver {
     _;
   }
 
-  struct Dispute {
+  struct DisputeAssignment {
     address assignee;
     address ethOrderBook;
   }
 
-  //maps uid to Dispute
-  mapping(string => Dispute) disputes;
+  mapping(string => DisputeAssignment) disputes;
+
+  struct Dispute {
+    address ethOrderBook;
+    string uid;
+  }
+
+  mapping(bytes32 => Dispute) public disputeQueryIds;
 
   DisputeInterface disputeInterface;
 
@@ -43,21 +50,40 @@ contract DisputeResolver {
   event DisputeEscalated(address ethOrderBook, string uid, address assignee, address assigner);
   event DisputeResolved(address ethOrderBook, string uid, string resolvedTo, address assignee);
 
-  function assignDispute(address ethOrderBook, string uid, address assignee) onlyOwner {
-    disputes[uid].assignee = assignee;
-    disputes[uid].ethOrderBook = ethOrderBook;
-    disputeInterface.checkDispute(uid, ethOrderBook);
-    DisputeAssigned(ethOrderBook, uid, assignee, msg.sender);
+//   function assignDispute(address ethOrderBook, string uid, address assignee, string country) onlyOwner {
+//     disputes[uid].assignee = assignee;
+//     disputes[uid].ethOrderBook = ethOrderBook;
+//     disputeInterface.checkDispute(uid, ethOrderBook, country);
+//     DisputeAssigned(ethOrderBook, uid, assignee, msg.sender);
+//   }
+
+  function assignDispute(string _uid, address _ethOrderBook, string country) onlyOwner {
+    assignDispute(_uid, _ethOrderBook, country, msg.sender);
+  }
+
+  function assignDispute(string _uid, address _ethOrderBook, string country, address assignee) onlyOwner {
+    //bytes32 queryId = oraclize_query("URL", "json(https://us-central1-automteetherexchange.cloudfunctions.net/checkDispute).dispute", strConcat('\n{"country" :"', country, '", "orderId": "', _uid, '"}'));
+    //disputeQueryIds[queryId].uid = _uid;"-KlXQoew7-TCFB6o9ci-"
+    //disputeQueryIds[queryId].ethOrderBook = _ethOrderBook;
+
+    //DEBUG VERSION
+    disputes[_uid].assignee = assignee;
+    disputes[_uid].ethOrderBook = _ethOrderBook;
+    disputeInterface.setDisputed(_ethOrderBook, _uid);
+    DisputeAssigned(_ethOrderBook, _uid, assignee, msg.sender);
+  }
+
+  function __callback(bytes32 id, string result) {
+    if(msg.sender != oraclize_cbAddress() || strCompare(disputeQueryIds[id].uid, "VOID") == 0) throw;
+    if(strCompare(result, "true") == 0) {
+      disputeInterface.setDisputed(disputeQueryIds[id].ethOrderBook, disputeQueryIds[id].uid);
+    }
+    disputeQueryIds[id].uid = "VOID";
   }
 
   function resolveDisputeSeller(string uid) onlyAssignee(uid) {
     disputeInterface.resolveDisputeSeller(uid, disputes[uid].ethOrderBook);
     DisputeResolved(disputes[uid].ethOrderBook, uid, 'seller', msg.sender);
-  }
-
-  function resolveDisputeSeller(string uid, address ethOrderBookAddress) onlyAssignee(uid) {
-    disputeInterface.resolveDisputeSeller(uid, ethOrderBookAddress);
-    DisputeResolved(ethOrderBookAddress, uid, 'seller', msg.sender);
   }
 
   function resolveDisputeBuyer(string uid) onlyAssignee(uid) {
