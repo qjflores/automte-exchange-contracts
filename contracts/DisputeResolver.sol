@@ -46,6 +46,10 @@ contract DisputeResolver is usingOraclize {
     disputeInterface = DisputeInterface(_disputeInterface);
   }
 
+  function() payable {
+
+  }
+
   event DisputeAssigned(address ethOrderBook, string uid, address assignee, address assigner);
   event DisputeEscalated(address ethOrderBook, string uid, address assignee, address assigner);
   event DisputeResolved(address ethOrderBook, string uid, string resolvedTo, address assignee);
@@ -62,14 +66,12 @@ contract DisputeResolver is usingOraclize {
   }
 
   function assignDispute(string _uid, address _ethOrderBook, string country, address assignee) onlyOwner {
-    //bytes32 queryId = oraclize_query("URL", "json(https://us-central1-automteetherexchange.cloudfunctions.net/checkDispute).dispute", strConcat('\n{"country" :"', country, '", "orderId": "', _uid, '"}'));
-    //disputeQueryIds[queryId].uid = _uid;"-KlXQoew7-TCFB6o9ci-"
-    //disputeQueryIds[queryId].ethOrderBook = _ethOrderBook;
+    bytes32 queryId = oraclize_query("URL", "json(https://us-central1-automteetherexchange.cloudfunctions.net/checkDispute).dispute", strConcat('\n{"country" :"', country, '", "orderId": "', _uid, '"}'));
+    disputeQueryIds[queryId].uid = _uid;
+    disputeQueryIds[queryId].ethOrderBook = _ethOrderBook;
 
-    //DEBUG VERSION
     disputes[_uid].assignee = assignee;
     disputes[_uid].ethOrderBook = _ethOrderBook;
-    disputeInterface.setDisputed(_ethOrderBook, _uid);
     DisputeAssigned(_ethOrderBook, _uid, assignee, msg.sender);
   }
 

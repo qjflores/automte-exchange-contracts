@@ -1,7 +1,10 @@
 pragma solidity ^0.4.11;
 
 contract OrderDBI {
-  enum Status { Open, Complete, Disputed, ResolvedSeller, ResolvedBuyer }
+  address public feeRecipient;
+  uint public feePercent;
+  address public disputeInterface;
+  enum Status { None, Open, Complete, Disputed, ResolvedSeller, ResolvedBuyer }
 
   function addOrder(string uid, address buyer, uint amount, uint price, string currency, uint fee);
   function setStatus(string uid, Status status);

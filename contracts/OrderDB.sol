@@ -1,8 +1,21 @@
 pragma solidity ^0.4.11;
 
 import "./OrderDBI.sol";
+import "./zeppelin/ownership/Ownable.sol";
 
-contract OrderDB is OrderDBI {
+contract OrderDB is OrderDBI, Ownable {
+
+  function setFeeRecipient(address _feeRecipient) onlyOwner {
+     feeRecipient = _feeRecipient;
+  }
+
+  function setDisputeInterface(address _disputeInterface) onlyOwner {
+     disputeInterface = _disputeInterface;
+  }
+
+  function setFeePercent(uint _feePercent) onlyOwner {
+     feePercent = _feePercent;
+  }
 
   struct Order {
     address buyer;
@@ -23,10 +36,18 @@ contract OrderDB is OrderDBI {
     orders[msg.sender][uid].fee = fee;
     orders[msg.sender][uid].status = OrderDBI.Status.Open;
   }
-
+  
   function setStatus(string uid, OrderDBI.Status status) {
     orders[msg.sender][uid].status = status;
   }
+
+  function setDisputed(address orderBook, string uid) onlyDisputeInterface {
+    require(orders[orderBook][uid].status == OrderDBI.Status.Open);
+    orders[orderBook][uid].status == OrderDBI.Status.Disputed;
+    OrderDisputed(orderBook, uid, orders[orderBook][uid].buyer);
+  }
+
+  event OrderDisputed(address orderBook, string uid, address buyer);
 
   function getAmount(string uid) constant returns (uint) {
     return orders[msg.sender][uid].amount;
@@ -50,6 +71,11 @@ contract OrderDB is OrderDBI {
 
   function getAmount(address orderBook, string uid) constant returns (uint) {
     return orders[orderBook][uid].amount;
+  }
+
+  modifier onlyDisputeInterface {
+    require(msg.sender == disputeInterface);
+    _;
   }
 
 }
