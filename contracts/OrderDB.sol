@@ -36,14 +36,14 @@ contract OrderDB is OrderDBI, Ownable {
     orders[msg.sender][uid].fee = fee;
     orders[msg.sender][uid].status = OrderDBI.Status.Open;
   }
-  
+
   function setStatus(string uid, OrderDBI.Status status) {
     orders[msg.sender][uid].status = status;
   }
 
   function setDisputed(address orderBook, string uid) onlyDisputeInterface {
     require(orders[orderBook][uid].status == OrderDBI.Status.Open);
-    orders[orderBook][uid].status == OrderDBI.Status.Disputed;
+    orders[orderBook][uid].status = OrderDBI.Status.Disputed;
     OrderDisputed(orderBook, uid, orders[orderBook][uid].buyer);
   }
 
