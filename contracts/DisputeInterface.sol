@@ -1,22 +1,13 @@
 pragma solidity ^0.4.11;
 
 import "./zeppelin/ownership/Ownable.sol";
-import "./ETHOrderBook.sol";
+import "./SellerInterface.sol";
 import "./OrderDB.sol";
 
 contract DisputeInterface is Ownable {
 
-  address public disputeResolver;
-  bytes32 public queryId;
   OrderDB orderDb;
-
-  function DisputeInterface() {
-    disputeResolver = 0x0;
-  }
-
-  function setDisputeResolver(address _disputeResolver) onlyOwner {
-    disputeResolver = _disputeResolver;
-  }
+  OrderBookI orderBook;
 
   function setOrderDb(address _orderDb) onlyOwner {
     orderDb = OrderDB(_orderDb);
@@ -27,18 +18,24 @@ contract DisputeInterface is Ownable {
   }
 
   function resolveDisputeSeller(string uid, address ethOrderBook) onlyDisputeResolver {
-    ETHOrderBook orderBook = ETHOrderBook(ethOrderBook);
-    orderBook.resolveDisputeSeller(uid);
+    orderDb.resolveDisputeSeller(ethOrderBook, uid);
   }
 
   function resolveDisputeBuyer(string uid, address ethOrderBook) onlyDisputeResolver {
-    ETHOrderBook orderBook = ETHOrderBook(ethOrderBook);
+    SellerInterface orderBook = SellerInterface(ethOrderBook);
     orderBook.completeOrder(uid);
   }
 
   modifier onlyDisputeResolver {
-    if(msg.sender != disputeResolver)
-      throw;
+    require(msg.sender == orderDb.disputeResolver());
+    _;
+  }
+
+  modifier checkOrderBook {
+    require(orderDb.orderBook() != 0x0);
+    if(orderDb.orderBook() != address(orderBook)) {
+      orderBook = OrderBookI(orderDb.orderBook());
+    }
     _;
   }
 

@@ -54,13 +54,6 @@ contract DisputeResolver is usingOraclize {
   event DisputeEscalated(address ethOrderBook, string uid, address assignee, address assigner);
   event DisputeResolved(address ethOrderBook, string uid, string resolvedTo, address assignee);
 
-//   function assignDispute(address ethOrderBook, string uid, address assignee, string country) onlyOwner {
-//     disputes[uid].assignee = assignee;
-//     disputes[uid].ethOrderBook = ethOrderBook;
-//     disputeInterface.checkDispute(uid, ethOrderBook, country);
-//     DisputeAssigned(ethOrderBook, uid, assignee, msg.sender);
-//   }
-
   function assignDispute(string _uid, address _ethOrderBook, string country) onlyOwner {
     assignDispute(_uid, _ethOrderBook, country, msg.sender);
   }
