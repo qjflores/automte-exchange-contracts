@@ -186,16 +186,6 @@ contract OrderDB is OrderDBI, Ownable {
     return orders[seller][uid].status;
   }
 
-  //DEBUG ONLY REMOVE FOR PRODUCTION
-  function getStatusDEBUG(address orderBook, string uid) constant returns (OrderDBI.Status) {
-    return orders[orderBook][uid].status;
-  }
-
-  //DEBUG ONLY REMOVE FOR PRODUCTION
-  function getAmountDEBUG(address orderBook, string uid) constant returns (uint) {
-    return orders[orderBook][uid].amount;
-  }
-
   modifier onlyDisputeInterface {
     require(msg.sender == disputeInterface);
     _;
